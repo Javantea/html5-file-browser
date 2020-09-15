@@ -1,9 +1,10 @@
 var app = function(){
-  var base_dir = (location.pathname.replace('/index.html', '/') +
-                  "/files/").replace(/\/\//g, '/');
+  var html_location = 'uploads.html';
+  var base_dir = (location.pathname.replace('/index.html', '/')).replace(/\/\//g, '/');
   var current_dir = (base_dir + location.hash.substring(1) +
                      '/').replace(/\/\//g, '/');
-  var IMG_EXTENSIONS = ['bmp', 'gif', 'jpg', 'jpeg', 'jpe', 'png'];
+  var IMG_EXTENSIONS = ['bmp', 'gif', 'jpg', 'jpeg', 'jpe', 'png', 'webp', 'apng', 'svg'];
+  var AUDIO_EXTENSIONS = ['ogg', 'flac', 'mp3', 'wav', 'mid', 'midi', 'mod', 'nsf'];
   var IGNORED_ELEMENTS = ['../', 'Name', 'Last modified', 'Size', 'Description',
                           'Parent Directory'];
   var imgCache = [];
@@ -39,6 +40,10 @@ var app = function(){
   function isImage(path) {
     return $.inArray(path.split('.').pop().toLowerCase(), IMG_EXTENSIONS) != -1;
   }
+  // check if the given path points to an audio
+  function isAudio(path) {
+    return $.inArray(path.split('.').pop().toLowerCase(), AUDIO_EXTENSIONS) != -1;
+  }
 
   function isValidTile(name) {
     return $.inArray(name, IGNORED_ELEMENTS) == -1;
@@ -67,12 +72,12 @@ var app = function(){
     }
 
     // retrieve the contents of the directory
-    $.get(current_dir, function(data) {
+    $.get(current_dir+html_location, function(data) {
       html = $.parseHTML(data);
       $(".browser-view").html("");
 
       // create tiles
-      $(html).find("a").each(function(i, element){
+      $(html).filter("a").each(function(i, element){
         if (isValidTile(element.getAttribute('href'))) {
           $(".browser-view").append(
             createTile(current_dir, element.getAttribute('href')));
@@ -93,9 +98,59 @@ var app = function(){
             e.preventDefault();
             showPreview(element.pathname);
           });
+        } else if (isAudio(element.pathname)) {
+          // show image previews
+          $(element).click(function(e) {
+            e.preventDefault();
+            showPreview(element.pathname);
+          });
         }
       });
     });
+  }
+
+  // show an audio icon for the given file
+  function showAudioPreview(filepath){
+    $(".bg-translucent").css('display', 'block');
+    $(".file-view-img").css('padding-top', '2em');
+    $(".file-view-img").attr('src', 'loader.gif');
+    $(".file-view-wrapper").css('display', 'block');
+    var img = new Image();
+    img.src = 'img/audio-icon.png';
+    img.onload = function() {
+      $(".file-view-img").fadeOut(0);
+      $(".file-view-img").css('padding-top', '0');
+      $(".file-view-img").attr('src', filepath);
+      $(".file-view-img").fadeIn();
+      var scale_width = 0.8 * $(window).width() / img.width;
+      var scale_height = 0.8 * $(window).height() / img.height;
+      var imgWidth = img.width * Math.min(scale_width, scale_height);
+      var imgHeight = img.height * Math.min(scale_width, scale_height);
+      $(".file-view-wrapper").css('left', ($(document).width() - imgWidth) / 2);
+      $(".file-view-wrapper").css('width', imgWidth);
+      $(".file-view-wrapper").css('height', imgHeight);
+      $(".file-view-prev").css('display', 'block');
+      $(".file-view-next").css('display', 'block');
+    };
+    cacheImage(filepath);
+
+    // search for the previous and next image to be displayed
+    var first_img = "";
+    var last_img = "";
+    prev_img = "";
+    next_img = "";
+    var img_found = false;
+    $(".browser-view a").each(function(i, element){
+      if (isImage(element.pathname)) {
+        if (first_img === "") first_img = element.pathname;
+        if (img_found && next_img === "") { next_img = element.pathname; }
+        if (element.pathname == filepath) img_found = true;
+        if (!img_found) prev_img = element.pathname;
+        last_img = element.pathname;
+      }
+    });
+    if (next_img === "") next_img = first_img;
+    if (prev_img === "") prev_img = last_img;
   }
 
   // show an image preview of the given file
@@ -164,7 +219,7 @@ var app = function(){
         showPreview(prev_img);
         break;
       case 39: // right arrow key
-        showPreview(next_img);
+        showAudioPreview(next_img);
         break;
     }
   });
